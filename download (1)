@@ -1,0 +1,36 @@
+# --- Python ---------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# --- Secretos: NUNCA subir ------------------------------------------------
+.streamlit/secrets.toml
+*.pem
+*.key
+service_account*.json
+
+# --- Datos: el maestro se conecta, no se versiona -------------------------
+*.xlsx
+*.xlsm
+*.xls
+*.csv
+data/
+
+# --- Caché de cargas procesadas -------------------------------------------
+*.parquet
+.cache/
+
+# --- Herramientas y sistema -----------------------------------------------
+.claude/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Salidas locales -------------------------------------------------------
+outputs/
+*.log
