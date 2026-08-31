@@ -1,0 +1,339 @@
+# =============================================================================
+#  ESQUEMA DE DATOS  ·  Operatividad Ecommerce
+# =============================================================================
+#  Este archivo define CÓMO se leen las columnas del Excel.
+#  La aplicación NUNCA lee por posición: sólo por nombre.
+#
+#  Para cada campo canónico se listan los encabezados aceptados ("aliases").
+#  El emparejamiento es tolerante a:
+#     mayúsculas/minúsculas · tildes · espacios · guiones bajos · signos
+#     ("SKU", "Sku", "sku", "S K U", "sku " -> SKU)
+#
+#  SI CAMBIA UN ENCABEZADO EN EL EXCEL:  agregue el nombre nuevo a la lista de
+#  aliases del campo correspondiente y guarde. No hay que tocar el código.
+#
+#  required: true  -> si falta, la carga se detiene indicando el campo exacto.
+#  required: false -> si falta, el dashboard oculta las métricas que dependen
+#                     de ese campo, pero sigue funcionando.
+# =============================================================================
+
+version: 3
+
+# -----------------------------------------------------------------------------
+#  Identificación de cada conjunto de datos dentro del libro.
+#  Se reconoce por la presencia de columnas "firma", no por el nombre de hoja
+#  ni por el orden, de modo que sobrevive a cambios de estructura.
+# -----------------------------------------------------------------------------
+datasets:
+
+  # ===========================================================================
+  ordenes:
+    label: "Órdenes (maestro)"
+    description: "Detalle línea a línea de pedidos ecommerce"
+    signature: ["Fecha Compra", "Order", "Sitio", "Estado FAPP"]
+    signature_min: 3
+    fields:
+      source_file:        {required: false, aliases: ["Source.Name", "Archivo Origen", "Fuente"]}
+      fecha_compra:       {required: true,  type: date,     aliases: ["Fecha Compra", "Fecha de Compra", "FechaCompra", "Fecha"]}
+      fecha_compra_ts:    {required: false, type: datetime, aliases: ["Fecha_Compra", "Fecha Compra Hora", "Fecha Compra TS"]}
+      fecha_asignacion:   {required: false, type: date,     aliases: ["Fecha Asignación", "Fecha Asignacion", "Fecha Asign"]}
+      fecha_documentacion: {required: false, type: date,     aliases: ["Fecha Documentac", "Fecha Documentación", "Fecha Documentacion"]}
+      fecha_boleta:       {required: false, type: datetime, aliases: ["Bol_Emitida", "Boleta Emitida", "Fecha Boleta"]}
+      fecha_empaque:      {required: false, type: datetime, aliases: ["Fecha_Empaque", "Fecha Empaque"]}
+      fecha_finalizacion: {required: false, type: datetime, aliases: ["Fecha_Finalizacion", "Fecha Finalización", "Fecha Finalizacion"]}
+      anio:               {required: false, type: int,      aliases: ["Año", "Anio", "Year"]}
+      mes:                {required: false, type: int,      aliases: ["Mes", "Month"]}
+      orden:              {required: true,  type: str,      aliases: ["Order", "Orden", "Nro Orden", "Número orden", "Numero Orden", "N° Orden"]}
+      shgroup:            {required: false, type: str,      aliases: ["ShGroup", "SH Group", "Sh_Group"]}
+      platform_order:     {required: false, type: str,      aliases: ["Platform_Order", "Platform Order"]}
+      sitio:              {required: true,  type: str,      aliases: ["Sitio", "Site", "Tienda Online", "Canal"]}
+      marca:              {required: false, type: str,      aliases: ["Marca", "Brand"]}
+      estado:             {required: true,  type: str,      aliases: ["Estado FAPP", "Estado Fapp", "EstadoFAPP", "Estado"]}
+      estado_raw:         {required: false, type: str,      aliases: ["Estado", "Status"]}
+      reporte:            {required: false, type: str,      aliases: ["Reporte", "Estado Reporte"]}
+      tienda_asignada:    {required: false, type: str,      aliases: ["Tienda Asignada", "Nom_Tienda_Asig", "Tienda Asig"]}
+      tienda_despacho:    {required: false, type: str,      aliases: ["Tienda Despacho", "Tienda Despacha", "Tienda de Despacho"]}
+      cod_tienda:         {required: false, type: str,      aliases: ["Cod_Tienda_Asig", "Codigo Tienda", "Cod Tienda"]}
+      modalidad:          {required: false, type: str,      aliases: ["Modalidad de Entrega", "Modalidad", "Modalidad Entrega", "Modalidad de Envío", "Modalidad de Envio"]}
+      tipo_modalidad:     {required: false, type: str,      aliases: ["Tipo de Modalidad", "Tipo Modalidad", "SLA Tipo"]}
+      zona:               {required: false, type: str,      aliases: ["Zona", "Zona (Lima y Prov)", "Zona Entrega"]}
+      departamento:       {required: false, type: str,      aliases: ["Departamento", "Region_cliente", "Región", "Region"]}
+      comuna:             {required: false, type: str,      aliases: ["Comuna_cliente", "Distrito", "Comuna"]}
+      metodo_pago:        {required: false, type: str,      aliases: ["Método de Pago", "Metodo de Pago", "Medio de Pago", "Medio_de_Pago"]}
+      medio_pago_raw:     {required: false, type: str,      aliases: ["Medio_de_Pago", "Medio de Pago Raw"]}
+      operador_logistico: {required: false, type: str,      aliases: ["Operador_Logistico", "Operador Logistico", "Operador Logístico", "OPL", "Op. Logistico"]}
+      metodo_despacho:    {required: false, type: str,      aliases: ["Método_de_Despacho", "Metodo_de_Despacho", "Metodo de Despacho"]}
+      tracking:           {required: false, type: str,      aliases: ["N°_Tracking_Envío", "N_Tracking_Envio", "Tracking", "Nro Tracking", "Codigo de Seguimiento"]}
+      mw:                 {required: false, type: str,      aliases: ["MW", "¿Es MW?", "Multiwarehouse", "Es MW"]}
+      item_dividido:      {required: false, type: str,      aliases: ["Item Divido", "Item Dividido", "¿Item dividido?"]}
+      sku:                {required: true,  type: str,      aliases: ["SKU", "Sku", "Codigo SKU", "Cod SKU", "SKU Quiebre"]}
+      barra:              {required: false, type: str,      aliases: ["Barra", "Codigo de Barra", "EAN"]}
+      nombre_producto:    {required: false, type: str,      aliases: ["Nombre_Prod", "Nombre Producto", "Producto", "Descripción"]}
+      cod_modelo:         {required: false, type: str,      aliases: ["Cod_Modelo", "Codigo Modelo", "Modelo"]}
+      color:              {required: false, type: str,      aliases: ["Nombre_Color", "Color"]}
+      talla:              {required: false, type: str,      aliases: ["Talla", "Size"]}
+      unidades:           {required: false, type: float,    aliases: ["Unidades", "Cantidad", "Qty", "Uds"]}
+      precio_unitario:    {required: false, type: float,    aliases: ["Precio_Unitario", "Precio Unitario", "PVP"]}
+      subtotal:           {required: false, type: float,    aliases: ["Sub_Total", "Subtotal", "Sub Total"]}
+      descuento:          {required: false, type: float,    aliases: ["Monto_Descuento", "Descuento", "Monto Descuento"]}
+      nombre_descuento:   {required: false, type: str,      aliases: ["Nombre_Descuento", "Cupón", "Cupon", "Nombre Descuento"]}
+      shipping:           {required: false, type: float,    aliases: ["Monto_Shipping", "Shipping", "Costo Envío", "Flete"]}
+      total:              {required: true,  type: float,    aliases: ["Total", "Monto Total", "Total con IGV", "Monto (con IGV)"]}
+      total_sin_igv:      {required: false, type: float,    aliases: ["Total sin IGV", "Monto (sin IGV)", "Total Neto", "Neto"]}
+      peso_orden:         {required: false, type: float,    aliases: ["# Ordenes", "# Órdenes", "Peso Orden", "Nro Ordenes"]}
+      duplicado:          {required: false, type: str,      aliases: ["Duplicado", "Dup", "Es Duplicado"]}
+      boleta:             {required: false, type: str,      aliases: ["No_Boleta", "Nro Boleta", "Boleta"]}
+      cliente_mail:       {required: false, type: str,      pii: true, aliases: ["Mail", "Correo", "Email", "Correo Cliente"]}
+      cliente_nombre:     {required: false, type: str,      pii: true, aliases: ["Nombre_cliente", "Nombre Cliente", "Cliente"]}
+      cliente_doc:        {required: false, type: str,      pii: true, aliases: ["Rut_cliente", "DNI", "Documento", "Rut"]}
+      cliente_fono:       {required: false, type: str,      pii: true, aliases: ["Fono_cliente", "Telefono", "Teléfono", "Celular"]}
+      cliente_dir:        {required: false, type: str,      pii: true, aliases: ["Direccion_cliente", "Dirección", "Direccion"]}
+      quien_recibe:       {required: false, type: str,      pii: true, aliases: ["¿Quien_Recibe?", "Quien Recibe", "Cliente (Quien Recibe)", "Receptor"]}
+
+  # ===========================================================================
+  otif:
+    label: "OTIF / Tiempos"
+    description: "On-Time / In-Full y descomposición de tiempos por pedido"
+    signature: ["OTIF", "Tienda Documenta", "Modalidad"]
+    signature_min: 2
+    fields:
+      fecha_compra:       {required: true,  type: datetime, aliases: ["Fecha compra", "Fecha Compra", "Fecha_Compra"]}
+      fecha_asignada:     {required: false, type: datetime, aliases: ["Fecha Asignada", "Fecha Asignación", "Fecha Asign"]}
+      fecha_documentacion: {required: false, type: datetime, aliases: ["Fecha Documentación", "Fecha Documentacion", "Fecha Documentac"]}
+      fecha_entrega:      {required: false, type: datetime, aliases: ["Fecha Entrega Cliente", "Fecha Entrega"]}
+      orden:              {required: true,  type: str,      aliases: ["Order", "Orden"]}
+      sitio:              {required: false, type: str,      aliases: ["Sitio", "Site"]}
+      marca:              {required: false, type: str,      aliases: ["Marca", "Brand"]}
+      sku:                {required: false, type: str,      aliases: ["SKU", "Sku"]}
+      otif:               {required: true,  type: str,      aliases: ["OTIF", "Otif"]}
+      on_time:            {required: false, type: str,      aliases: ["On Time", "Cumple On Time", "OnTime", "ON TIME"]}
+      in_full:            {required: false, type: str,      aliases: ["In Full (Entregado)", "In Full", "IN FULL", "InFull"]}
+      modalidad:          {required: false, type: str,      aliases: ["Modalidad", "Modalidad de Entrega"]}
+      estado_orden:       {required: false, type: str,      aliases: ["Estado Orden", "Estado"]}
+      estado_logistico:   {required: false, type: str,      aliases: ["Estado Logistico", "Estado Logístico"]}
+      tienda_documenta:   {required: false, type: str,      aliases: ["Tienda Documenta", "Tienda que Documenta"]}
+      tienda_despacha:    {required: false, type: str,      aliases: ["Tienda Despacha", "Tienda Despacho"]}
+      zona:               {required: false, type: str,      aliases: ["Zona (Lima y Prov)", "Zona"]}
+      departamento:       {required: false, type: str,      aliases: ["Departamento", "Region"]}
+      op_logistico:       {required: false, type: str,      aliases: ["Op. Logistico", "Operador_Logistico", "Operador Logístico", "OPL"]}
+      sla_objetivo_dias:  {required: false, type: str,      aliases: ["SLA Objetivo (días)", "SLA Objetivo (dias)", "SLA Objetivo"]}
+      sla_objetivo_hrs:   {required: false, type: float,    aliases: ["SLA Objetivo\n(hrs)", "SLA Objetivo (hrs)", "SLA Objetivo_x000a_(hrs)", "SLA Objetivo Horas"]}
+      t_doc_calendario:   {required: false, type: float,    aliases: ["Tiempo Doc. Calendario (hrs)", "Tiempo Doc Calendario"]}
+      t_doc_operativo:    {required: false, type: float,    aliases: ["Tiempo Doc. Operativo Tienda (hrs)", "Tiempo Doc Operativo"]}
+      t_despacho:         {required: false, type: float,    aliases: ["Tiempo Desp. x Pedido (hrs.)", "Tiempo Despacho x Pedido", "Tiempo Desp x Pedido"]}
+      t_entrega_log:      {required: false, type: float,    aliases: ["Tiempo Entreg Log. x Pedido (hrs.)", "Tiempo Entrega Logistica"]}
+      t_total:            {required: false, type: float,    aliases: ["Tiempo Total Compra-Entrega (hrs)", "Tiempo Total"]}
+      t_tienda:           {required: false, type: float,    aliases: ["Tiempo Tienda Total (hrs)", "Tiempo Tienda Total"]}
+      t_logistico:        {required: false, type: float,    aliases: ["Tiempo Logístico Total (hrs)", "Tiempo Logistico Total"]}
+      pct_demora_tienda:  {required: false, type: float,    aliases: ["% Demora Tienda", "Pct Demora Tienda"]}
+      pct_demora_log:     {required: false, type: float,    aliases: ["% Demora Log", "% Demora Logistica"]}
+      responsable_demora: {required: false, type: str,      aliases: ["Responsable Principal Demora", "Responsable Demora"]}
+      duplicado:          {required: false, type: str,      aliases: ["Duplicado", "Dup"]}
+      total:              {required: false, type: float,    aliases: ["Total", "Monto Total"]}
+      unidades:           {required: false, type: float,    aliases: ["Unidades", "Cantidad"]}
+
+  # ===========================================================================
+  carrier:
+    label: "Carrier / Tracking"
+    description: "Seguimiento de envíos del operador logístico"
+    signature: ["CODIGO DE SEGUIMIENTO", "ESTADO ACTUAL", "SERVICIO"]
+    signature_min: 2
+    fields:
+      orden:              {required: true,  type: str,      aliases: ["ORDEN", "Orden", "Order"]}
+      tracking:           {required: false, type: str,      aliases: ["CODIGO DE SEGUIMIENTO", "Codigo de Seguimiento", "Tracking"]}
+      guia:               {required: false, type: str,      aliases: ["GUIA", "Guía", "Guia"]}
+      fecha_solicitud:    {required: false, type: datetime, aliases: ["Fecha Solicitud de Servicio", "Fecha Solicitud"]}
+      fecha_hub:          {required: false, type: datetime, aliases: ["Fecha Ingreso Hub", "Ingreso Hub"]}
+      fecha_entrega:      {required: false, type: datetime, aliases: ["Fecha Entrega", "FECHA ENTREGA"]}
+      sla:                {required: false, type: float,    aliases: ["SLA", "Sla"]}
+      time_real:          {required: false, type: float,    aliases: ["TIME REAL", "Time Real", "Tiempo Real"]}
+      on_time:            {required: false, type: str,      aliases: ["ON TIME", "On Time", "OnTime"]}
+      in_full:            {required: false, type: str,      aliases: ["IN FULL", "In Full"]}
+      otif:               {required: false, type: str,      aliases: ["OTIF", "Otif"]}
+      servicio:           {required: false, type: str,      aliases: ["SERVICIO", "Servicio", "Tipo Servicio"]}
+      estado_actual:      {required: false, type: str,      aliases: ["ESTADO ACTUAL", "Estado Actual", "Estado"]}
+      detalle_estado:     {required: false, type: str,      aliases: ["DETALLE ESTADO", "Detalle Estado"]}
+      estado_final:       {required: false, type: str,      aliases: ["ESTADO FINAL", "Estado Final"]}
+      departamento:       {required: false, type: str,      aliases: ["DEPARTAMENTO", "Departamento"]}
+      provincia:          {required: false, type: str,      aliases: ["PROVINCIA", "Provincia"]}
+      distrito:           {required: false, type: str,      aliases: ["DISTRITO", "Distrito"]}
+      dpto_origen:        {required: false, type: str,      aliases: ["DPTO ORIGEN", "Departamento Origen"]}
+      nro_visitas:        {required: false, type: float,    aliases: ["NRO VISITAS", "Nro Visitas", "Visitas"]}
+      piezas:             {required: false, type: float,    aliases: ["PIEZAS", "Piezas"]}
+      peso:               {required: false, type: float,    aliases: ["PESO UTIL", "Peso Util", "Peso"]}
+      agencia:            {required: false, type: str,      aliases: ["AGENCIA ACTUAL", "Agencia"]}
+      dias_demora:        {required: false, type: float,    aliases: ["DIAS DEMORA", "Dias Demora", "Días Demora"]}
+      ans_entrega:        {required: false, type: str,      aliases: ["ANS ENTREGA", "ANS Entrega"]}
+
+  # ===========================================================================
+  quiebres:
+    label: "Quiebres de Stock"
+    description: "Pedidos quebrados por falta de stock"
+    signature: ["SKU Quiebre", "Tipo de Quiebre", "Status Quiebre"]
+    signature_min: 2
+    fields:
+      fecha_compra:       {required: true,  type: date,     aliases: ["Fecha Compra", "Fecha de Compra"]}
+      fecha_quiebre:      {required: false, type: date,     aliases: ["Fecha Quiebre Tienda", "Fecha Quiebre"]}
+      fecha_reporte:      {required: false, type: date,     aliases: ["Fecha Reporte (OPS)", "Fecha Reporte"]}
+      mes:                {required: false, type: str,      aliases: ["Mes", "Month"]}
+      sitio:              {required: false, type: str,      aliases: ["Sitio", "Site"]}
+      marca:              {required: false, type: str,      aliases: ["Marca", "Brand"]}
+      # En el origen, cuando la orden se cancela se escribe el estado en la
+      # columna de la tienda. Se anula para que no aparezca como una tienda más.
+      tienda_quiebre:
+        required: false
+        type: str
+        aliases: ["Tienda Quiebre", "Tienda del Quiebre"]
+        null_values: ["Cancelada manual", "Cancelada Manual", "Cancelada final",
+                      "Cancelada Final", "Traspaso", "Sin stock"]
+      orden:              {required: true,  type: str,      aliases: ["Número orden", "Numero orden", "Order", "Orden"]}
+      sku:                {required: true,  type: str,      aliases: ["SKU Quiebre", "SKU", "Sku"]}
+      tipo_quiebre:       {required: false, type: str,      aliases: ["Tipo de Quiebre", "Tipo Quiebre"]}
+      status_quiebre:     {required: false, type: str,      aliases: ["Status Quiebre", "Estado Quiebre"]}
+      monto_con_igv:      {required: false, type: float,    aliases: ["Monto (con IGV)", "Monto con IGV"]}
+      monto_sin_igv:      {required: false, type: float,    aliases: ["Monto (sin IGV)", "Monto sin IGV"]}
+      modalidad:          {required: false, type: str,      aliases: ["Modalidad de Envío", "Modalidad de Envio", "Modalidad"]}
+      metodo_pago:        {required: false, type: str,      aliases: ["Medio de Pago", "Método de Pago"]}
+      dias_tienda:        {required: false, type: float,    aliases: ["Días Tienda", "Dias Tienda"]}
+      dias_gestion:       {required: false, type: float,    aliases: ["Días Gestión", "Dias Gestion"]}
+      tiempo_total:       {required: false, type: float,    aliases: ["Tiempo Total", "Tiempo Total Quiebre"]}
+      estado:             {required: false, type: str,      aliases: ["Estado", "Estado Gestión"]}
+      es_mw:              {required: false, type: str,      aliases: ["¿Es MW?", "Es MW", "MW"]}
+      cancelada_fapp:     {required: false, type: str,      aliases: ["Cancelada en Fapp", "Cancelada Fapp"]}
+
+
+# =============================================================================
+#  NORMALIZACIÓN DE VALORES
+#  Unifica variantes del mismo valor de negocio detectadas en los datos.
+#  Agregue aquí cualquier variante nueva que aparezca.
+# =============================================================================
+value_maps:
+
+  marca:
+    "VANS": "Vans"
+    "PARFOIS": "Parfois"
+    "BSOUL": "Bsoul"
+    "KEDS": "Keds"
+    "COLUMBIA": "Columbia"
+    "ROCKFORD": "Rockford"
+    "BILLABONG": "Billabong"
+    "PATAGONIA": "Patagonia"
+    "SOREL": "Sorel"
+    "HUSHPUPPIES": "Hush Puppies"
+    "HUSH PUPPIES": "Hush Puppies"
+    "HUSH PUPPIES KIDS": "Hush Puppies Kids"
+    "ACCESORIOS HP": "Hush Puppies Accesorios"
+    "NORSEG SAFETY": "Norseg"
+    "MOUNTAIN HARDWEAR": "Mountain Hardwear"
+
+  departamento:
+    "CUZCO": "Cusco"
+    # El carrier entrega los departamentos en mayúsculas; se alinean con el maestro.
+    "AMAZONAS": "Amazonas"
+    "ANCASH": "Ancash"
+    "APURIMAC": "Apurimac"
+    "AREQUIPA": "Arequipa"
+    "AYACUCHO": "Ayacucho"
+    "CAJAMARCA": "Cajamarca"
+    "CALLAO": "Callao"
+    "CUSCO": "Cusco"
+    "HUANCAVELICA": "Huancavelica"
+    "HUANUCO": "Huanuco"
+    "ICA": "Ica"
+    "JUNIN": "Junin"
+    "LA LIBERTAD": "La Libertad"
+    "LAMBAYEQUE": "Lambayeque"
+    "LORETO": "Loreto"
+    "MOQUEGUA": "Moquegua"
+    "PASCO": "Pasco"
+    "PIURA": "Piura"
+    "PUNO": "Puno"
+    "SAN MARTIN": "San Martin"
+    "TACNA": "Tacna"
+    "TUMBES": "Tumbes"
+    "UCAYALI": "Ucayali"
+    # El carrier no separa Lima metropolitana de provincias: su "LIMA" es
+    # mayoritariamente Lima metropolitana (97% de los pedidos del maestro).
+    "LIMA": "Lima Metropolitana"
+    "LIMA (METROPOLITANA)": "Lima Metropolitana"
+    "LIMA (DEPARTAMENTO)": "Lima Provincias"
+    "LIMA (PROVINCIA)": "Lima Provincias"
+    "MADRE DE DIOS": "Madre de Dios"
+
+  operador_logistico:
+    "SHARFF": "Scharf"
+    "SCHARFF": "Scharf"
+
+  metodo_pago:
+    "MERCADOPAGOOFF": "Mercado Pago Off"
+    "CREDITCARD": "Mercado Pago"
+    "YAPE MERCADO PAGO": "Yape"
+    "MONNET - BANK TRANSFER": "Monnet"
+    "MKP SHOPSTAR": "Shopstar"
+    "NC": "Reversso"
+    "67": "Vendemas"
+
+  # La base OTIF identifica el sitio por su handle de plataforma
+  # ("columbiaperu"); el maestro usa el nombre comercial ("Columbia").
+  sitio:
+    "COLUMBIAPERU": "Columbia"
+    "COLUMBIAPE": "Columbia"
+    "HUSHPUPPIESPERU": "Hush Puppies"
+    "HUSHPUPPIESPE": "Hush Puppies"
+    "ROCKFORDPERU": "Rockford"
+    "ROCKFORDPE": "Rockford"
+    "VANSPERU": "Vans"
+    "VANSPE": "Vans"
+    "PARFOISPE": "Parfois"
+    "PARFOISPERU": "Parfois"
+    "PATAGONIAPE": "Patagonia"
+    "PATAGONIAPERU": "Patagonia"
+    "KEDSPE": "Keds"
+    "KEDSPERU": "Keds"
+    "BSOULPERU": "Bsoul"
+    "BSOULPE": "Bsoul"
+    "SUPERMALLPE": "Supermall"
+    "SUPERMALLPERU": "Supermall"
+    "SHOPSTARPE": "Shopstar"
+
+  modalidad:
+    "SHIPPINGHOME": "Despacho"
+    "SHIPPING": "Despacho"
+    "CLICKCOLLECT": "Retiro"
+
+  # Valores que significan "sin dato" y deben tratarse como nulos.
+  _null_tokens: ["-", "", "N/A", "NA", "NULL", "null", "(en blanco)", "#N/A", "nan", "None"]
+
+
+# =============================================================================
+#  REGLAS DE NEGOCIO
+# =============================================================================
+business:
+  # Estados que representan una orden cancelada.
+  estados_cancelados: ["Cancelada Final", "Cancelada Manual"]
+  # Estado que representa una orden completada.
+  estados_completados: ["Finalizada"]
+  # Estados que representan trabajo aún en curso (backlog operativo).
+  estados_backlog:
+    - "Pendiente Despacho"
+    - "Pendiente Empaque"
+    - "Pendiente Asignacion"
+    - "Pendiente Boleta"
+    - "Pendiente Pago"
+    - "Procesar Boleta"
+    - "En Tienda"
+    - "En Transito"
+  # Valores afirmativos para banderas Sí/No.
+  valores_si: ["SÍ", "SI", "S", "YES", "Y", "TRUE", "1"]
+  # Tienda que representa el Centro de Distribución (el resto son tiendas).
+  centros_distribucion: ["BODEGA ECOMMERCE", "BODEGA FORUS 320", "BODEGA PARFOIS 400"]
+  igv: 0.18
+
+  # Umbrales de los semáforos de rendimiento.
+  semaforos:
+    otif:              {bueno: 0.90, alerta: 0.80}
+    on_time:           {bueno: 0.92, alerta: 0.85}
+    in_full:           {bueno: 0.95, alerta: 0.90}
+    tasa_cancelacion:  {bueno: 0.08, alerta: 0.15, invertido: true}
+    documentado:       {bueno: 0.95, alerta: 0.85}
+    t_documentacion:   {bueno: 12.0, alerta: 24.0, invertido: true}
