@@ -77,7 +77,10 @@ def build_model(source: DataSource, schema: dict | None = None, mask_pii: bool =
             report.datasets[key] = mapper.missing_report(key)
             continue
         frame, dataset_report = mapper.apply(key, raw, header.origin)
-        frame = clean.apply_types(frame, spec["fields"], null_tokens)
+        avisos: list[str] = []
+        frame = clean.apply_types(frame, spec["fields"], null_tokens, avisos)
+        for aviso in avisos:
+            report.messages.append(f"[{dataset_report.label}] {aviso}")
         frame = clean.apply_value_maps(frame, value_maps)
         if mask_pii:
             pii = [c for c, cfg in spec["fields"].items() if cfg.get("pii")]
@@ -124,8 +127,22 @@ def _yes(business: dict) -> set[str]:
     return set(business.get("valores_si", ["SÍ", "SI"]))
 
 
-def _add_calendar(frame: pd.DataFrame, column: str = "fecha_compra") -> None:
+def _asegurar_fecha(frame: pd.DataFrame, column: str) -> bool:
+    """Garantiza que la columna sea datetime antes de usar el accesor `.dt`.
+
+    Red de seguridad: un origen exótico o una carga guardada por una versión
+    anterior podría traerla como texto, y entonces todo el bloque de campos
+    derivados se caía y el conjunto quedaba marcado como inutilizable.
+    """
     if column not in frame:
+        return False
+    if not pd.api.types.is_datetime64_any_dtype(frame[column]):
+        frame[column] = clean.clean_datetime(frame[column])
+    return True
+
+
+def _add_calendar(frame: pd.DataFrame, column: str = "fecha_compra") -> None:
+    if not _asegurar_fecha(frame, column):
         return
     fecha = frame[column]
     frame["fecha_dia"] = fecha.dt.normalize()
@@ -143,6 +160,8 @@ def _derive_ordenes(model: DataModel, business: dict) -> None:
         return
 
     # -- calendario. Se prefiere la marca con hora para el análisis horario.
+    _asegurar_fecha(df, "fecha_compra")
+    _asegurar_fecha(df, "fecha_compra_ts")
     if "fecha_compra_ts" in df and df["fecha_compra_ts"].notna().any():
         df["fecha_compra"] = df["fecha_compra"].fillna(df["fecha_compra_ts"].dt.normalize())
         base = df["fecha_compra_ts"].fillna(df["fecha_compra"])

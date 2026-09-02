@@ -77,6 +77,24 @@ identificación sobrevive a cambios de estructura.
 > el maestro de pedidos. Al filtrar períodos anteriores esas secciones aparecen
 > vacías: es el dato, no un error.
 
+### Fechas
+
+Una misma columna del maestro llega escrita de varias formas según cómo se haya
+exportado. Todas estas se leen bien, sin tocar el Excel:
+
+| Cómo viene | Ejemplo |
+|---|---|
+| Peruano | `02/08/2026`, `02/08/2026 14:19:51`, `02-08-2026`, `02.08.2026` |
+| ISO | `2026-08-02`, `2026-08-02T12:04:00`, `2026/08/02` |
+| Con zona horaria | `2026-08-02T12:04:00Z`, `...-05:00` → se pasan a hora de Perú |
+| Mes en español | `01-ago-2026`, `3 de agosto de 2026` |
+| Serial de Excel | `45871` |
+
+Con el año delante nunca se aplica la regla peruana de «día primero»:
+`2026/08/02` es **2 de agosto**, no 8 de febrero. Lo que no se reconozca queda
+como nulo y se avisa en la pantalla **Fuente**, con un ejemplo del valor que no
+se pudo leer, en vez de dejar el reporte vacío sin explicación.
+
 ---
 
 ## Cómo se cuenta

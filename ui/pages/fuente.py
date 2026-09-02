@@ -121,6 +121,11 @@ def render(ctx, fuente, estado, on_upload, on_refresh, directo=None) -> None:
             st.write("")
             c.kpi_card("Días cubiertos", (hasta - desde).days + 1, "num", icon="📆",
                        sub=f"{desde:%d/%m/%Y} – {hasta:%d/%m/%Y}")
+        else:
+            st.write("")
+            st.error("Ninguna fecha de compra se pudo interpretar: el reporte no "
+                     "puede acotar períodos. Revise el formato de «Fecha Compra» "
+                     "en el Excel.", icon="📆")
         c.panel_close()
 
     # -- mapeo --------------------------------------------------------------

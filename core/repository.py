@@ -39,7 +39,8 @@ TABLES = ("ordenes", "otif", "carrier", "quiebres")
 
 #: Subir este número invalida las cargas guardadas. Hay que hacerlo cuando cambia
 #: la forma en que se procesan los datos (limpieza, campos derivados, tipos).
-PIPELINE_VERSION = 1
+#: v2: lectura de fechas (zonas horarias, aaaa/mm/dd, meses en español, seriales).
+PIPELINE_VERSION = 2
 
 
 def _schema_hash() -> str:

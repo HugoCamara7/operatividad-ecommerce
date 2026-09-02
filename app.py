@@ -191,7 +191,7 @@ ATAJOS = ["Todo el histórico", "Últimos 7 días", "Últimos 30 días", "Últim
 def _barra_filtros(modelo) -> tuple[FilterState, str, Periodo | None]:
     state = FilterState()
     ordenes = modelo.ordenes
-    minimo, maximo = ordenes["fecha_compra"].min(), ordenes["fecha_compra"].max()
+    minimo, maximo = _cobertura(modelo)
 
     with st.container(key="filtros"):
         fila = st.columns([1.05, 1.5, 1.15, 1.5, 0.9], gap="small")
@@ -298,21 +298,44 @@ def _slider_rango(ordenes: pd.DataFrame, state: FilterState, columna: str, etiqu
         state.rangos[columna] = elegido
 
 
+def _cobertura(modelo) -> tuple[pd.Timestamp, pd.Timestamp]:
+    """Primer y último día con datos.
+
+    Si ninguna fecha se pudo interpretar, el selector no puede quedarse con un
+    NaT (rompería la pantalla entera): se cae al día de hoy y la pantalla
+    «Fuente» explica por qué no hay fechas.
+    """
+    desde, hasta = modelo.periodo
+    if desde is None or hasta is None or pd.isna(desde) or pd.isna(hasta):
+        hoy = pd.Timestamp.today().normalize()
+        return hoy, hoy
+    return pd.Timestamp(desde).normalize(), pd.Timestamp(hasta).normalize()
+
+
 def _rango(atajo: str, minimo: pd.Timestamp, maximo: pd.Timestamp) -> tuple[pd.Timestamp, pd.Timestamp]:
+    """Ventana del atajo elegido, siempre dentro de los días con datos.
+
+    El recorte final importa: con un histórico corto, «Mes anterior» caía fuera
+    del rango del calendario y Streamlit rechazaba el valor.
+    """
     if atajo == "Últimos 7 días":
-        return max(minimo, maximo - pd.Timedelta(days=6)), maximo
-    if atajo == "Últimos 30 días":
-        return max(minimo, maximo - pd.Timedelta(days=29)), maximo
-    if atajo == "Últimos 90 días":
-        return max(minimo, maximo - pd.Timedelta(days=89)), maximo
-    if atajo == "Mes actual":
-        return max(minimo, maximo.replace(day=1)), maximo
-    if atajo == "Mes anterior":
-        fin = maximo.replace(day=1) - pd.Timedelta(days=1)
-        return max(minimo, fin.replace(day=1)), fin
-    if atajo == "Año actual":
-        return max(minimo, maximo.replace(month=1, day=1)), maximo
-    return minimo, maximo
+        desde, hasta = maximo - pd.Timedelta(days=6), maximo
+    elif atajo == "Últimos 30 días":
+        desde, hasta = maximo - pd.Timedelta(days=29), maximo
+    elif atajo == "Últimos 90 días":
+        desde, hasta = maximo - pd.Timedelta(days=89), maximo
+    elif atajo == "Mes actual":
+        desde, hasta = maximo.replace(day=1), maximo
+    elif atajo == "Mes anterior":
+        hasta = maximo.replace(day=1) - pd.Timedelta(days=1)
+        desde = hasta.replace(day=1)
+    elif atajo == "Año actual":
+        desde, hasta = maximo.replace(month=1, day=1), maximo
+    else:
+        desde, hasta = minimo, maximo
+    desde = min(max(desde, minimo), maximo)
+    hasta = min(max(hasta, desde), maximo)
+    return desde, hasta
 
 
 # ---------------------------------------------------------------------------
