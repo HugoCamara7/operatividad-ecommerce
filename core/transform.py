@@ -197,6 +197,7 @@ def _derive_ordenes(model: DataModel, business: dict) -> None:
     yes = _yes(business)
     if "mw" in df:
         df["es_mw"] = clean.to_flag(df["mw"], yes).fillna(False).astype(bool)
+    _derive_tipo_entrega(df)
     if "nombre_descuento" in df:
         df["uso_cupon"] = df["nombre_descuento"].notna()
 
@@ -215,6 +216,25 @@ def _derive_ordenes(model: DataModel, business: dict) -> None:
         df["es_documentado"] = df["reporte"].astype("string").str.upper().eq("DOCUMENTADO")
 
     model.ordenes = df
+
+
+def _derive_tipo_entrega(df: pd.DataFrame) -> None:
+    """Tipo de entrega dentro de la modalidad: MW, SD, ND o Regular.
+
+    Es la pregunta que operación hace sobre el mix («¿cuánto pesa MW?»). El
+    valor viene en 'Tipo de Modalidad', ya unificado a siglas por los mapas de
+    valores; cuando esa columna no está o viene vacía se recurre a la marca MW
+    del maestro, que es el único corte que siempre existe.
+    """
+    etiquetas = pd.Series(pd.NA, index=df.index, dtype="string")
+    if "tipo_modalidad" in df:
+        etiquetas = df["tipo_modalidad"].astype("string").str.strip()
+        etiquetas = etiquetas.mask(etiquetas.eq(""))
+    if "es_mw" in df:
+        respaldo = pd.Series("Regular", index=df.index, dtype="string").mask(df["es_mw"], "MW")
+        etiquetas = etiquetas.fillna(respaldo)
+    if etiquetas.notna().any():
+        df["tipo_entrega"] = etiquetas.fillna("Sin clasificar")
 
 
 def _derive_otif(model: DataModel, business: dict) -> None:

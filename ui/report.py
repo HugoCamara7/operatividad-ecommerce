@@ -200,6 +200,8 @@ def operatividad(ctx) -> None:
     sem = ctx.model.business.get("semaforos", {})
 
     medidas = [
+        Medida("pedidos", "Pedidos", cal.get("ordenes"), cal_ref.get("ordenes"),
+               "num", icono="🧾"),
         Medida("doc", "Documentado", cal.get("tasa_documentado"),
                cal_ref.get("tasa_documentado"), "pct", icono="📄"),
         Medida("otif", "OTIF", ind.get("otif"), ind_ref.get("otif"), "pct", icono="🏆"),
@@ -209,10 +211,20 @@ def operatividad(ctx) -> None:
     c.kpi_medidas(medidas, ctx.etiqueta_ref)
 
     # -- semáforos ----------------------------------------------------------
+    # Sólo se dibuja el semáforo del indicador que el archivo permite calcular:
+    # un archivo sin la hoja OTIF llenaría la fila de medidores vacíos.
     c.section_label("Semáforos de cumplimiento")
-    metas = [("otif", "OTIF", ind.get("otif")), ("on_time", "On Time", ind.get("on_time")),
-             ("in_full", "In Full", ind.get("in_full")),
-             ("documentado", "Documentado", cal.get("tasa_documentado"))]
+    metas = [(clave, titulo, valor) for clave, titulo, valor in
+             (("otif", "OTIF", ind.get("otif")),
+              ("on_time", "On Time", ind.get("on_time")),
+              ("in_full", "In Full", ind.get("in_full")),
+              ("documentado", "Documentado", cal.get("tasa_documentado")))
+             if valor is not None and np.isfinite(valor)]
+    if not metas:
+        c.empty_state("Sin indicadores de cumplimiento",
+                      "El archivo cargado no trae OTIF ni estado de documentación.")
+    # La rejilla siempre es de cuatro: con menos indicadores, los medidores
+    # conservan su tamaño en lugar de estirarse a lo ancho de la pantalla.
     for col, (clave, titulo, valor) in zip(st.columns(4, gap="small"), metas):
         regla = sem.get(clave, {})
         with col:
@@ -220,7 +232,7 @@ def operatividad(ctx) -> None:
             st.plotly_chart(
                 charts.gauge(valor, f"meta {regla.get('bueno', .9):.0%}",
                              regla.get("bueno", .9), regla.get("alerta", .8), 165),
-                width="stretch", config=charts.CONFIG)
+                width="stretch", config=charts.CONFIG, key=f"semaforo_{clave}")
             c.panel_close()
 
     # -- modalidad ----------------------------------------------------------
@@ -249,6 +261,8 @@ def operatividad(ctx) -> None:
         ("venta", "Venta", "money"),
     ], total={"modalidad": "Total", "ordenes": float(resumen_mod["ordenes"].sum()),
               "venta": float(resumen_mod["venta"].sum())}, barra="ordenes")
+
+    _tipo_entrega(ctx, ordenes, cal.get("ordenes"))
 
     # -- logística ----------------------------------------------------------
     c.section_label("Logística y operador")
@@ -303,12 +317,61 @@ def operatividad(ctx) -> None:
                 with izq:
                     st.plotly_chart(
                         charts.barras_desvio(datos.head(14), columna, "tasa", meta, "pct", 320),
-                        width="stretch", config=charts.CONFIG)
+                        width="stretch", config=charts.CONFIG, key=f"otif_dim_{columna}")
                 with der:
                     vista = datos.copy()
                     c.tabla(vista.head(14), [
                         (columna, etiqueta.title(), "key"),
                         ("tasa", "OTIF", "pct"), ("casos", "Pedidos", "num")], barra="casos")
+
+
+def _tipo_entrega(ctx, ordenes: pd.DataFrame, total_pedidos: float | None = None) -> None:
+    """Cuánto pesa cada tipo de entrega: MW, Regular, ND y SD.
+
+    Despacho vs. Retiro dice cómo llega el pedido; el tipo dice con qué
+    compromiso de tiempo, que es lo que fija el SLA de la operación.
+    """
+    resumen_tipo = blocks.resumen_tipo_entrega(ordenes)
+    if resumen_tipo.empty:
+        return
+
+    c.section_label("Tipo de entrega (MW · Regular · ND · SD)")
+    izq, der = st.columns([1, 1.5], gap="small")
+    with izq:
+        c.panel_open("Peso de cada tipo",
+                     "Un pedido dividido cuenta en cada tipo que lo compone")
+        st.plotly_chart(
+            charts.dona(resumen_tipo, "tipo_entrega", "ordenes", 240, "órdenes",
+                        c.fmt(total_pedidos if total_pedidos is not None
+                              else resumen_tipo["ordenes"].sum())),
+            width="stretch", config=charts.CONFIG, key="dona_tipo_entrega")
+        c.panel_close()
+    with der:
+        cruce = blocks.mix_modalidad_tipo(ordenes)
+        if not cruce.empty:
+            c.panel_open("Tipo dentro de cada modalidad",
+                         "Cada barra reparte el 100% de la modalidad")
+            st.plotly_chart(
+                charts.barras_apiladas_100(cruce, "modalidad", "tipo_entrega", "pedidos", 240),
+                width="stretch", config=charts.CONFIG)
+        else:
+            c.panel_open("Evolución mensual del tipo")
+            evo = blocks.evolucion_participacion(ordenes, "tipo_entrega")
+            st.plotly_chart(
+                charts.lineas_multiples(evo, "periodo_mes",
+                                        {k: k for k in evo.columns if k != "periodo_mes"},
+                                        "pct", 240),
+                width="stretch", config=charts.CONFIG)
+        c.panel_close()
+
+    c.tabla(resumen_tipo, [
+        ("tipo_entrega", "Tipo de entrega", "key"), ("ordenes", "Órdenes", "num"),
+        ("participacion", "% Total", "pct"), ("finalizadas", "Finalizadas", "num"),
+        ("exito", "% Éxito", "pct"), ("ticket", "Ticket Prom.", "money"),
+        ("venta", "Venta", "money"),
+    ], total={"tipo_entrega": "Total", "ordenes": float(resumen_tipo["ordenes"].sum()),
+              "venta": float(resumen_tipo["venta"].sum())}, barra="ordenes")
+    drill_selector(ctx, "tipo_modalidad", resumen_tipo["tipo_entrega"].tolist())
 
 
 # ===========================================================================

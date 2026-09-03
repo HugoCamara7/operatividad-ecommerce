@@ -301,6 +301,24 @@ value_maps:
     "SHIPPING": "Despacho"
     "CLICKCOLLECT": "Retiro"
 
+  # Tipo de entrega dentro de la modalidad. El origen lo escribe de varias
+  # formas ("Same Day", "SAMEDAY", "SD"); el reporte usa siempre la sigla.
+  tipo_modalidad:
+    "MULTIWAREHOUSE": "MW"
+    "MULTI WAREHOUSE": "MW"
+    "MULTIBODEGA": "MW"
+    "MW": "MW"
+    "SAME DAY": "SD"
+    "SAMEDAY": "SD"
+    "SD": "SD"
+    "NEXT DAY": "ND"
+    "NEXTDAY": "ND"
+    "ND": "ND"
+    "REGULAR": "Regular"
+    "NORMAL": "Regular"
+    "ESTANDAR": "Regular"
+    "STANDARD": "Regular"
+
   # Valores que significan "sin dato" y deben tratarse como nulos.
   _null_tokens: ["-", "", "N/A", "NA", "NULL", "null", "(en blanco)", "#N/A", "nan", "None"]
 
@@ -331,7 +349,8 @@ business:
 
   # Umbrales de los semáforos de rendimiento.
   semaforos:
-    otif:              {bueno: 0.90, alerta: 0.80}
+    # Meta acordada con operación: OTIF 97%.
+    otif:              {bueno: 0.97, alerta: 0.90}
     on_time:           {bueno: 0.92, alerta: 0.85}
     in_full:           {bueno: 0.95, alerta: 0.90}
     tasa_cancelacion:  {bueno: 0.08, alerta: 0.15, invertido: true}

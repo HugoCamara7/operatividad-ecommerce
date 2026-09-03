@@ -43,6 +43,9 @@ class Context:
     #: Mismo universo de filtros, pero en la ventana de comparación.
     ordenes_ref: pd.DataFrame = field(default_factory=pd.DataFrame)
     otif_ref: pd.DataFrame = field(default_factory=pd.DataFrame)
+    #: Días de la ventana de comparación que el archivo cargado sí contiene, y
+    #: cuántos tiene esa ventana en total.
+    cobertura_ref: tuple[int, int] = (0, 0)
 
     @classmethod
     def build(cls, model: DataModel, state: FilterState,
@@ -52,6 +55,7 @@ class Context:
 
         ctx = cls(model=model, state=state, periodo=periodo,
                   referencia=referencia, modo_comparacion=modo)
+        ctx.cobertura_ref = compare.cobertura(referencia, *model.periodo)
         ctx.ordenes = filters.aplicar(model.ordenes, state, "ordenes")
         ctx.otif = filters.aplicar(model.otif, state, "otif")
         ctx.carrier = filters.aplicar(model.carrier, state, "carrier")
@@ -89,8 +93,19 @@ class Context:
         if not self.ordenes.empty and "orden" in self.ordenes:
             partes.append(f"{self.ordenes['orden'].nunique():,} pedidos".replace(",", " "))
         if self.referencia.valido:
-            partes.append(f"vs {self.referencia.texto()}")
+            partes.append(f"vs {self.referencia.texto()}{self._aviso_referencia()}")
         return "  ·  ".join(partes)
+
+    def _aviso_referencia(self) -> str:
+        """Advierte cuando el archivo no cubre la ventana de comparación.
+
+        Sin este aviso, comparar agosto contra un julio que el archivo no trae
+        se lee como una mejora del 600%.
+        """
+        dentro, total = self.cobertura_ref
+        if not total or dentro >= total:
+            return ""
+        return " (sin datos)" if not dentro else f" (parcial: {dentro} de {total} días)"
 
     def chips(self) -> list[str]:
         return self.state.resumen_dimensiones()[:3]

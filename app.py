@@ -142,8 +142,23 @@ def _sincronizar(fuente: FuenteMaestra, estado, forzar: bool = False) -> None:
     st.session_state["origen_datos"] = nombre
 
 
+def _identidad(archivo) -> str:
+    """Identifica el archivo del uploader entre ejecuciones."""
+    return f"{getattr(archivo, 'file_id', '')}|{archivo.name}|{archivo.size}"
+
+
 def _on_upload(archivo) -> None:
+    """Procesa el archivo subido, una sola vez.
+
+    El `file_uploader` devuelve el mismo archivo en cada ejecución mientras siga
+    cargado: sin esta guarda, el `st.rerun()` del final volvería a entrar aquí y
+    el reporte no dejaría de recargarse.
+    """
+    identidad = _identidad(archivo)
+    if st.session_state.get("carga_manual") == identidad:
+        return
     modelo = _cargar(archivo.getvalue(), archivo.name)
+    st.session_state["carga_manual"] = identidad
     st.session_state["modelo"] = modelo
     st.session_state["origen_datos"] = archivo.name
     st.session_state["firma_fuente"] = f"manual::{archivo.name}"
@@ -184,31 +199,116 @@ def _navegacion() -> str:
 # ---------------------------------------------------------------------------
 #  Filtros
 # ---------------------------------------------------------------------------
-ATAJOS = ["Todo el histórico", "Últimos 7 días", "Últimos 30 días", "Últimos 90 días",
-          "Mes actual", "Mes anterior", "Año actual", "Personalizado"]
+def _limites_datos(ordenes: pd.DataFrame) -> tuple[pd.Timestamp | None, pd.Timestamp | None]:
+    """Primer y último día con datos en el maestro cargado."""
+    if "fecha_compra" not in ordenes:
+        return None, None
+    serie = ordenes["fecha_compra"].dropna()
+    if serie.empty:
+        return None, None
+    return serie.min().normalize(), serie.max().normalize()
+
+
+#: Prefijos de los widgets de fecha. La clave real lleva pegada la firma del
+#: archivo cargado (ver `_firma_fechas`).
+_WIDGETS_FECHA = ("atajo", "rango", "rango_ref")
+
+
+def _firma_fechas(minimo: pd.Timestamp, maximo: pd.Timestamp) -> str:
+    """Ata los filtros de fecha al archivo cargado.
+
+    Streamlit guarda el valor de cada widget bajo su clave y el navegador lo
+    reenvía en la siguiente interacción, aunque el código lo haya borrado: por
+    eso no basta con limpiar `session_state`, hay que cambiar la clave. Así, al
+    subir un archivo nuevo el atajo y el calendario vuelven a su valor inicial
+    en lugar de arrastrar las fechas del anterior.
+    """
+    firma = f"{st.session_state.get('huella', '')}|{minimo:%Y%m%d}|{maximo:%Y%m%d}"
+    if st.session_state.get("firma_fechas") != firma:
+        st.session_state["firma_fechas"] = firma
+        antiguas = [clave for clave in st.session_state
+                    if clave.startswith(tuple(f"{w}::" for w in _WIDGETS_FECHA))]
+        for clave in antiguas:                   # widgets del archivo anterior
+            del st.session_state[clave]
+    return firma
+
+
+def _fijar_rango(clave: str, periodo: Periodo, minimo: pd.Timestamp,
+                 maximo: pd.Timestamp, respetar_guardado: bool = False) -> None:
+    """Deja en `session_state` un rango válido para el date_input `clave`.
+
+    Se escribe siempre antes de crear el widget: es la única forma de que el
+    calendario muestre el rango vigente y de que nunca guarde fechas fuera de
+    los datos cargados (Streamlit rechaza un valor fuera de min/max).
+    `respetar_guardado` conserva lo que el usuario eligió a mano, sólo acotado.
+    """
+    if respetar_guardado:
+        guardado = st.session_state.get(clave)
+        if isinstance(guardado, (tuple, list)) and len(guardado) == 2:
+            elegido = Periodo(pd.Timestamp(guardado[0]), pd.Timestamp(guardado[1]))
+            periodo = compare.encajar(elegido, minimo, maximo)
+    if not periodo.valido:
+        periodo = Periodo(minimo, maximo)
+    st.session_state[clave] = (periodo.desde.date(), periodo.hasta.date())
+
+
+def _leer_rango(elegido, respaldo: Periodo) -> Periodo:
+    """Interpreta lo que devuelve un date_input de rango.
+
+    Mientras el usuario elige, Streamlit devuelve una sola fecha: se toma como
+    un rango de un día en lugar de descartar la elección.
+    """
+    if isinstance(elegido, (tuple, list)):
+        if len(elegido) == 2:
+            return Periodo(pd.Timestamp(elegido[0]), pd.Timestamp(elegido[1]))
+        if len(elegido) == 1:
+            unica = pd.Timestamp(elegido[0])
+            return Periodo(unica, unica)
+        return respaldo
+    if elegido is not None:
+        unica = pd.Timestamp(elegido)
+        return Periodo(unica, unica)
+    return respaldo
 
 
 def _barra_filtros(modelo) -> tuple[FilterState, str, Periodo | None]:
     state = FilterState()
     ordenes = modelo.ordenes
-    minimo, maximo = ordenes["fecha_compra"].min(), ordenes["fecha_compra"].max()
+    minimo, maximo = _limites_datos(ordenes)
+    if minimo is None:
+        state.desde = state.hasta = None
+        return state, "ninguno", None
+    firma = _firma_fechas(minimo, maximo)
+    clave_atajo, clave_rango, clave_ref = (f"{w}::{firma}" for w in _WIDGETS_FECHA)
+
+    atajos = compare.atajos_disponibles(minimo, maximo)
+    inicial = compare.atajo_inicial(minimo, maximo)
 
     with st.container(key="filtros"):
         fila = st.columns([1.05, 1.5, 1.15, 1.5, 0.9], gap="small")
 
         with fila[0]:
-            atajo = st.selectbox("Período", ATAJOS, index=2, key="atajo")
-        desde, hasta = _rango(atajo, minimo, maximo)
+            atajo = st.selectbox(
+                "Período", atajos, index=atajos.index(inicial), key=clave_atajo,
+                format_func=lambda clave: compare.ATAJOS[clave],
+                help=f"Los atajos se cuentan desde el último día con datos "
+                     f"({maximo:%d/%m/%Y}), no desde hoy.")
+        # El atajo manda sobre el calendario; sólo «Personalizado» conserva
+        # las fechas que el usuario movió a mano.
+        periodo = compare.rango_atajo(atajo, minimo, maximo)
+        _fijar_rango(clave_rango, periodo, minimo, maximo,
+                     respetar_guardado=atajo == "personalizado")
         with fila[1]:
             elegido = st.date_input(
-                "Desde – Hasta", value=(desde.date(), hasta.date()),
-                min_value=minimo.date(), max_value=maximo.date(), key="rango",
-                disabled=atajo != "Personalizado",
-                help="Elija «Personalizado» para mover las fechas a mano.")
-            if atajo == "Personalizado" and isinstance(elegido, (tuple, list)) and len(elegido) == 2:
-                desde, hasta = pd.Timestamp(elegido[0]), pd.Timestamp(elegido[1])
-        state.desde, state.hasta = desde, hasta
-        actual = Periodo(desde, hasta)
+                "Desde – Hasta", min_value=minimo.date(), max_value=maximo.date(),
+                key=clave_rango,
+                disabled=atajo != "personalizado",
+                help=f"El archivo cargado tiene datos del {minimo:%d/%m/%Y} al "
+                     f"{maximo:%d/%m/%Y}. Elija «Personalizado» para mover las fechas a mano.")
+            if atajo == "personalizado":
+                periodo = _leer_rango(elegido, periodo)
+        state.desde, state.hasta = periodo.desde, periodo.hasta
+        actual = periodo
 
         with fila[2]:
             modo = st.selectbox("Comparar contra", list(compare.MODOS),
@@ -217,28 +317,26 @@ def _barra_filtros(modelo) -> tuple[FilterState, str, Periodo | None]:
         personalizado = None
         with fila[3]:
             if modo == "personalizado":
-                referencia_previa = compare.periodo_anterior(actual)
+                _fijar_rango(clave_ref, compare.encajar(
+                    compare.periodo_anterior(actual), minimo, maximo),
+                    minimo, maximo, respetar_guardado=True)
                 elegido_ref = st.date_input(
-                    "Rango de comparación",
-                    value=(referencia_previa.desde.date(), referencia_previa.hasta.date()),
-                    min_value=minimo.date(), max_value=maximo.date(), key="rango_ref")
-                if isinstance(elegido_ref, (tuple, list)) and len(elegido_ref) == 2:
-                    personalizado = Periodo(pd.Timestamp(elegido_ref[0]),
-                                            pd.Timestamp(elegido_ref[1]))
+                    "Rango de comparación", min_value=minimo.date(),
+                    max_value=maximo.date(), key=clave_ref)
+                personalizado = _leer_rango(elegido_ref, Periodo())
+                if not personalizado.valido:
+                    personalizado = None
             else:
                 referencia = compare.resolver(actual, modo)
                 st.markdown('<span class="filtro-tag">Referencia</span>', unsafe_allow_html=True)
-                st.markdown(
-                    f'<div class="vs-pill"><i>vs</i> {html.escape(referencia.texto())}</div>'
-                    if referencia.valido else
-                    '<div class="vs-pill" style="opacity:.6">sin comparación</div>',
-                    unsafe_allow_html=True)
+                st.markdown(_pastilla_referencia(referencia, minimo, maximo),
+                            unsafe_allow_html=True)
         with fila[4]:
             st.markdown('<span class="filtro-tag">&nbsp;</span>', unsafe_allow_html=True)
             if st.button("Limpiar", width="stretch", help="Quita filtros y drill-down"):
                 for clave in list(st.session_state):
                     if clave.startswith(("f_", "r_", "drill", "atajo", "rango", "cmp_",
-                                         "sin_canc", "unicas")):
+                                         "sin_canc", "unicas", "firma_fechas")):
                         del st.session_state[clave]
                 st.rerun()
 
@@ -267,6 +365,26 @@ def _barra_filtros(modelo) -> tuple[FilterState, str, Periodo | None]:
 
     state.drill = dict(st.session_state.get("drill", {}))
     return state, modo, personalizado
+
+
+def _pastilla_referencia(referencia: Periodo, minimo: pd.Timestamp,
+                         maximo: pd.Timestamp) -> str:
+    """Rango de comparación, avisando si el archivo no lo cubre.
+
+    Comparar contra días que el maestro no trae produce variaciones absurdas
+    (+600%); es mejor decirlo aquí que dejar que se lean como reales.
+    """
+    if not referencia.valido:
+        return '<div class="vs-pill" style="opacity:.6">sin comparación</div>'
+    texto = html.escape(referencia.texto())
+    dentro, total = compare.cobertura(referencia, minimo, maximo)
+    if not dentro:
+        return (f'<div class="vs-pill" style="opacity:.75"><i>vs</i> {texto}'
+                f'<br><small>el archivo no tiene esos días</small></div>')
+    if dentro < total:
+        return (f'<div class="vs-pill"><i>vs</i> {texto}'
+                f'<br><small>cobertura parcial: {dentro} de {total} días</small></div>')
+    return f'<div class="vs-pill"><i>vs</i> {texto}</div>'
 
 
 def _multiselect(ordenes: pd.DataFrame, state: FilterState, clave: str) -> None:
@@ -298,23 +416,6 @@ def _slider_rango(ordenes: pd.DataFrame, state: FilterState, columna: str, etiqu
         state.rangos[columna] = elegido
 
 
-def _rango(atajo: str, minimo: pd.Timestamp, maximo: pd.Timestamp) -> tuple[pd.Timestamp, pd.Timestamp]:
-    if atajo == "Últimos 7 días":
-        return max(minimo, maximo - pd.Timedelta(days=6)), maximo
-    if atajo == "Últimos 30 días":
-        return max(minimo, maximo - pd.Timedelta(days=29)), maximo
-    if atajo == "Últimos 90 días":
-        return max(minimo, maximo - pd.Timedelta(days=89)), maximo
-    if atajo == "Mes actual":
-        return max(minimo, maximo.replace(day=1)), maximo
-    if atajo == "Mes anterior":
-        fin = maximo.replace(day=1) - pd.Timedelta(days=1)
-        return max(minimo, fin.replace(day=1)), fin
-    if atajo == "Año actual":
-        return max(minimo, maximo.replace(month=1, day=1)), maximo
-    return minimo, maximo
-
-
 # ---------------------------------------------------------------------------
 #  Aplicación
 # ---------------------------------------------------------------------------
@@ -330,13 +431,22 @@ def main() -> None:
     directo = _origen_directo()
 
     def refrescar(forzar: bool = False) -> None:
-        if forzar:
-            st.session_state.pop("modelo", None)
-            if not _sincronizar_directo(directo):
-                _sincronizar(fuente, estado, forzar=True)
-            st.rerun()
-        else:
+        if not forzar:
             _sincronizar(fuente, estado)
+            return
+        # Si ninguna fuente automática responde se conserva lo que ya estaba
+        # cargado: perder el archivo subido a mano no ayuda a nadie.
+        previo = st.session_state.get("modelo")
+        st.session_state.pop("modelo", None)
+        if not _sincronizar_directo(directo):
+            _sincronizar(fuente, estado, forzar=True)
+        if st.session_state.get("modelo") is None:
+            st.session_state["modelo"] = previo
+            if previo is not None:
+                st.toast("No hay fuente automática que releer; se mantiene la "
+                         "carga manual. Suba el archivo nuevo para actualizarlo.",
+                         icon="ℹ️")
+        st.rerun()
 
     if st.session_state.get("modelo") is None:
         # BigQuery manda cuando está habilitado; el Excel es el respaldo.

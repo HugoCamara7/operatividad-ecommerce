@@ -75,22 +75,57 @@ def tabla_mensual(ordenes: pd.DataFrame) -> pd.DataFrame:
     return resumen.sort_values("_mes")
 
 
-def resumen_modalidad(ordenes: pd.DataFrame) -> pd.DataFrame:
-    if ordenes.empty or "modalidad" not in ordenes:
-        return pd.DataFrame(columns=["modalidad", "ordenes", "participacion",
-                                     "finalizadas", "exito", "ticket", "venta"])
-    base = ordenes.dropna(subset=["modalidad"])
-    out = base.groupby("modalidad").agg(
+def resumen_entrega(ordenes: pd.DataFrame, dimension: str = "modalidad") -> pd.DataFrame:
+    """Pedidos, participación, éxito y venta por dimensión de entrega.
+
+    Sirve tanto para el corte Despacho/Retiro (`modalidad`) como para el tipo
+    de entrega MW/SD/ND/Regular (`tipo_entrega`): la pregunta es la misma y la
+    tabla que la responde también.
+    """
+    columnas = [dimension, "ordenes", "participacion", "finalizadas",
+                "exito", "ticket", "venta"]
+    if ordenes.empty or dimension not in ordenes:
+        return pd.DataFrame(columns=columnas)
+    base = ordenes.dropna(subset=[dimension])
+    if base.empty:
+        return pd.DataFrame(columns=columnas)
+    out = base.groupby(dimension).agg(
         ordenes=("orden", "nunique"),
         venta=("venta_neta", "sum") if "venta_neta" in base else ("total", "sum"),
     ).reset_index()
     if "es_finalizada" in base:
-        fin = base[base["es_finalizada"]].groupby("modalidad")["orden"].nunique()
-        out["finalizadas"] = out["modalidad"].map(fin).fillna(0)
+        fin = base[base["es_finalizada"]].groupby(dimension)["orden"].nunique()
+        out["finalizadas"] = out[dimension].map(fin).fillna(0)
         out["exito"] = out["finalizadas"] / out["ordenes"].replace(0, np.nan)
     out["participacion"] = out["ordenes"] / out["ordenes"].sum()
     out["ticket"] = out["venta"] / out["ordenes"].replace(0, np.nan)
     return out.sort_values("ordenes", ascending=False)
+
+
+def resumen_modalidad(ordenes: pd.DataFrame) -> pd.DataFrame:
+    """Despacho frente a Retiro."""
+    return resumen_entrega(ordenes, "modalidad")
+
+
+def resumen_tipo_entrega(ordenes: pd.DataFrame) -> pd.DataFrame:
+    """Peso de cada tipo de entrega: MW, Regular, ND y SD."""
+    return resumen_entrega(ordenes, "tipo_entrega")
+
+
+def mix_modalidad_tipo(ordenes: pd.DataFrame) -> pd.DataFrame:
+    """Pedidos por modalidad y tipo de entrega, en formato largo.
+
+    Responde cuánto pesa cada tipo dentro de Despacho y dentro de Retiro, que
+    es donde el mix cambia de verdad.
+    """
+    if ordenes.empty or "modalidad" not in ordenes or "tipo_entrega" not in ordenes:
+        return pd.DataFrame(columns=["modalidad", "tipo_entrega", "pedidos"])
+    base = ordenes.dropna(subset=["modalidad", "tipo_entrega"])
+    if base.empty:
+        return pd.DataFrame(columns=["modalidad", "tipo_entrega", "pedidos"])
+    return (base.groupby(["modalidad", "tipo_entrega"])["orden"]
+            .nunique().reset_index(name="pedidos")
+            .sort_values("pedidos", ascending=False))
 
 
 def evolucion_participacion(df: pd.DataFrame, dimension: str) -> pd.DataFrame:
@@ -178,11 +213,15 @@ def evolucion_quiebres(quiebres: pd.DataFrame) -> pd.DataFrame:
 
 
 def tabla_quiebres(quiebres: pd.DataFrame) -> pd.DataFrame:
+    # Un archivo sin la hoja de quiebres (el consolidado, por ejemplo) llega
+    # aquí vacío y sin columnas: se devuelve tal cual en vez de romper.
+    if quiebres is None or quiebres.empty:
+        return pd.DataFrame()
     out = quiebres.copy()
     if "fecha_quiebre" in out:
         out["fecha_quiebre"] = out["fecha_quiebre"].dt.strftime("%d/%m/%Y")
-    orden = "monto_sin_igv" if "monto_sin_igv" in out else "sku"
-    return out.sort_values(orden, ascending=False)
+    orden = next((c for c in ("monto_sin_igv", "sku") if c in out), None)
+    return out.sort_values(orden, ascending=False) if orden else out
 
 
 def resumen_opl(ordenes: pd.DataFrame, carrier: pd.DataFrame) -> pd.DataFrame:

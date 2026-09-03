@@ -14,6 +14,7 @@ import re
 import zipfile
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from itertools import islice
 from pathlib import Path
 from xml.etree.ElementTree import ParseError
 
@@ -69,6 +70,14 @@ class ExcelSource(DataSource):
     #: contienen las columnas firma de ningún conjunto.
     MIN_FLAT_ROWS = 2
 
+    #: Filas que se inspeccionan buscando el encabezado. El consolidado que se
+    #: exporta a mano suele traer un título, un logo o una fila en blanco antes
+    #: de los nombres de columna; el libro de tablas dinámicas no.
+    MAX_FILAS_ENCABEZADO = 12
+
+    #: Mínimo de celdas con texto para considerar que una fila es el encabezado.
+    MIN_COLUMNAS = 3
+
     def __init__(self, data: bytes | str | Path, name: str = ""):
         if isinstance(data, (str, Path)):
             path = Path(data)
@@ -80,6 +89,8 @@ class ExcelSource(DataSource):
         self._fingerprint = ""
         self._headers: list[TableHeader] | None = None
         self._cache_fields: dict[int, tuple] = {}
+        #: hoja -> filas a saltar antes del encabezado real.
+        self._filas_previas: dict[str, int] = {}
 
     @property
     def label(self) -> str:
@@ -135,25 +146,52 @@ class ExcelSource(DataSource):
             if sheet.max_row is None or sheet.max_row < self.MIN_FLAT_ROWS:
                 continue
             try:
-                first = next(sheet.iter_rows(values_only=True), None)
+                primeras = list(islice(sheet.iter_rows(values_only=True),
+                                       self.MAX_FILAS_ENCABEZADO))
             except Exception:
                 continue
-            if not first:
+            salto, columns = self._buscar_encabezado(primeras)
+            if not columns:
                 continue
-            columns = [str(c) for c in first if c is not None]
-            if len(columns) < 3:
-                continue
+            self._filas_previas[sheet.title] = salto
+            origen = f"hoja '{sheet.title}'"
+            if salto:
+                origen += f" (encabezado en la fila {salto + 1})"
             out.append(
                 TableHeader(
                     name=f"hoja::{sheet.title}",
                     columns=_dedupe(columns),
-                    origin=f"hoja '{sheet.title}'",
+                    origin=origen,
                     cost=10**9,          # se prefiere siempre un pivot cache
-                    rows_hint=sheet.max_row,
+                    rows_hint=max(sheet.max_row - salto, 0),
                 )
             )
         book.close()
         return out
+
+    def _buscar_encabezado(self, filas: list[tuple]) -> tuple[int, list[str]]:
+        """Fila que hace de encabezado y los nombres que trae.
+
+        El consolidado exportado a mano no siempre empieza en A1: puede llevar
+        un título, una fila en blanco o un par de filas de contexto. Se toma la
+        PRIMERA fila ancha y hecha de texto —los encabezados son texto; los
+        datos, en su mayoría, no—, nunca la más ancha: en una hoja normal el
+        encabezado ya es la primera fila y una fila de datos no debe poder
+        desbancarlo. Si ninguna fila cumple, se usa la primera con contenido,
+        que es lo que se hacía antes de contemplar las filas de cortesía.
+        """
+        pobladas = [(indice, fila) for indice, fila in enumerate(filas) if fila]
+        if not pobladas:
+            return 0, []
+        ancho = max(sum(1 for v in fila if v is not None) for _, fila in pobladas)
+        minimo = max(self.MIN_COLUMNAS, int(ancho * 0.6))
+        respaldo = None
+        for indice, fila in pobladas:
+            if sum(1 for v in fila if _es_encabezado(v)) >= minimo:
+                return indice, _nombres(fila)
+            if respaldo is None and sum(1 for v in fila if v is not None) >= self.MIN_COLUMNAS:
+                respaldo = (indice, _nombres(fila))
+        return respaldo or (0, [])
 
     # -- carga --------------------------------------------------------------
     def load(self, name: str) -> pd.DataFrame:
@@ -165,11 +203,28 @@ class ExcelSource(DataSource):
             return pd.DataFrame(rows, columns=_dedupe(names))
         if name.startswith("hoja::"):
             sheet = name.removeprefix("hoja::")
-            frame = pd.read_excel(io.BytesIO(self._bytes), sheet_name=sheet, engine="openpyxl")
+            frame = pd.read_excel(io.BytesIO(self._bytes), sheet_name=sheet,
+                                  engine="openpyxl",
+                                  skiprows=self._filas_previas.get(sheet, 0))
             frame = frame.dropna(axis=1, how="all").dropna(axis=0, how="all")
             frame.columns = _dedupe([str(c) for c in frame.columns])
             return frame
         raise KeyError(f"Tabla desconocida: {name}")
+
+
+def _nombres(fila: tuple) -> list[str]:
+    """Nombres de columna de una fila de encabezado, sin los huecos."""
+    return [str(v).strip() for v in fila if v is not None]
+
+
+def _es_encabezado(valor) -> bool:
+    """Una celda sirve de encabezado si trae texto que no sea un número suelto."""
+    if valor is None or isinstance(valor, (int, float, bool)):
+        return False
+    texto = str(valor).strip()
+    if not texto:
+        return False
+    return not texto.replace(".", "", 1).replace(",", "", 1).lstrip("-").isdigit()
 
 
 def _dedupe(names: list[str]) -> list[str]:

@@ -125,8 +125,9 @@ def csv_detalle(df: pd.DataFrame) -> bytes:
 # ---------------------------------------------------------------------------
 _COLUMNAS_DETALLE = [
     "fecha_compra", "orden", "sitio", "marca", "estado", "grupo_estado", "reporte",
-    "tienda_asignada", "tienda_despacho", "origen_despacho", "modalidad", "tipo_modalidad",
-    "zona", "departamento", "metodo_pago", "operador_logistico", "tracking",
+    "tienda_asignada", "tienda_despacho", "origen_despacho", "modalidad",
+    "tipo_modalidad", "tipo_entrega", "zona", "departamento", "metodo_pago",
+    "operador_logistico", "tracking",
     "sku", "nombre_producto", "talla", "color", "unidades", "precio_unitario",
     "subtotal", "descuento", "shipping", "total", "total_sin_igv",
 ]
@@ -136,7 +137,8 @@ _ETIQUETAS = {
     "estado": "Estado", "grupo_estado": "Grupo estado", "reporte": "Reporte",
     "tienda_asignada": "Tienda asignada", "tienda_despacho": "Tienda despacho",
     "origen_despacho": "Origen despacho", "modalidad": "Modalidad",
-    "tipo_modalidad": "Tipo modalidad", "zona": "Zona", "departamento": "Departamento",
+    "tipo_modalidad": "Tipo modalidad", "tipo_entrega": "Tipo de entrega",
+    "zona": "Zona", "departamento": "Departamento",
     "metodo_pago": "Medio de pago", "operador_logistico": "Operador logístico",
     "tracking": "Tracking", "sku": "SKU", "nombre_producto": "Producto", "talla": "Talla",
     "color": "Color", "unidades": "Unidades", "precio_unitario": "Precio unitario",

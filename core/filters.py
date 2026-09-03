@@ -18,7 +18,9 @@ DIMENSIONES: dict[str, tuple[str, str]] = {
     "marca": ("Marca", "marca"),
     "estado": ("Estado del pedido", "estado"),
     "modalidad": ("Modalidad de entrega", "modalidad"),
-    "tipo_modalidad": ("Tipo de modalidad", "tipo_modalidad"),
+    # Se filtra por el tipo ya unificado (MW/SD/ND/Regular), no por el texto
+    # crudo del origen: es el mismo dato escrito de una sola forma.
+    "tipo_modalidad": ("Tipo de entrega", "tipo_entrega"),
     "zona": ("Zona", "zona"),
     "departamento": ("Departamento", "departamento"),
     "tienda_asignada": ("Tienda", "tienda_asignada"),

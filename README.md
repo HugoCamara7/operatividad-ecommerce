@@ -73,6 +73,11 @@ Los cuatro conjuntos se cruzan por `Order`. Cada uno se reconoce por sus
 **columnas firma**, no por el nombre de la hoja ni por el orden, así que la
 identificación sobrevive a cambios de estructura.
 
+También sirve el **consolidado plano** —una hoja normal, un registro por fila—
+en lugar del libro de tablas dinámicas: se reconoce igual por sus columnas
+firma, y el encabezado se busca en las primeras filas, de modo que un título o
+una fila en blanco encima de los nombres de columna no estorban.
+
 > Las bases de OTIF, carrier y quiebres cubren un rango de fechas más corto que
 > el maestro de pedidos. Al filtrar períodos anteriores esas secciones aparecen
 > vacías: es el dato, no un error.
@@ -148,7 +153,7 @@ KPIs, filtros, gráficos e interfaz— sigue funcionando sin cambios.
 | Sección | Responde a |
 |---|---|
 | **◧ Resumen** | Estado del negocio en una pantalla: venta, órdenes, embudo y cumplimiento |
-| **⚙ Operatividad** | Documentación, OTIF, modalidad de entrega y operador logístico |
+| **⚙ Operatividad** | Pedidos, documentación, OTIF, modalidad y tipo de entrega (MW/Regular/ND/SD) y operador logístico |
 | **🏬 Tiendas** | Ranking, concentración, volumen frente a cancelación y flujo por tienda |
 | **🔖 Productos** | Qué se vende, por marca, y quiebres de stock |
 | **⇄ Comparativos** | Actual vs. referencia por indicador, mes y dimensión |
@@ -160,7 +165,23 @@ variación %**. La referencia se elige en la barra de filtros: período anterior
 mismo período del año anterior o un rango personalizado.
 
 Los umbrales de los semáforos se configuran en la sección `business.semaforos`
-de `schema.yml`.
+de `schema.yml` (meta de OTIF: **97 %**).
+
+### Filtro de fechas
+
+Los atajos de período (**Últimos 7/30/90 días**, **Mes del último dato**, …) se
+cuentan desde el **último día con datos del archivo**, no desde la fecha de hoy:
+el maestro siempre va unos días atrasado y, si se contaran desde hoy, el rango
+saldría vacío. Sólo se ofrecen los atajos que de verdad recortan el archivo
+cargado: sobre un archivo de 26 días no aparecen «últimos 30» ni «mes anterior».
+
+Cuando la ventana de comparación cae fuera de lo que el archivo trae, la
+pastilla de referencia y la cabecera de sección lo dicen (*sin datos* o
+*cobertura parcial*): comparar contra días que no existen produce variaciones
+de +600 % que no significan nada.
+
+Al cargar un archivo nuevo, el rango de fechas vuelve a su valor inicial sobre
+las fechas del archivo recién subido.
 
 ---
 
